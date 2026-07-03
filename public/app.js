@@ -181,7 +181,6 @@ async function deleteTask(taskId) {
 function enterEditMode(taskElement, task) {
   taskElement.classList.add('edit-mode');
   const taskContent = taskElement.querySelector('.task-content');
-  const taskMeta = taskContent.querySelector('.task-meta');
 
   taskContent.innerHTML = `
     <div>
@@ -233,7 +232,7 @@ function enterEditMode(taskElement, task) {
 
     // Submit to server
     try {
-      const response = await apiCall('PUT', `/api/tasks/${task.id}`, {
+      await apiCall('PUT', `/api/tasks/${task.id}`, {
         title: newTitle,
         due_date: newDueDate,
         version: task.version

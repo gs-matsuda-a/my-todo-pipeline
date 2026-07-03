@@ -1,0 +1,17 @@
+# render.yaml — Render Blueprint（CD設定 / Infrastructure as Code）。
+# 手順4のフォールバック（UI で "New +" → "Blueprint"）で使う。primary はこの repo の Render API 手順。
+# runtime: docker ＝ 同梱の Dockerfile をビルドして起動（better-sqlite3 のネイティブビルドに必要な
+# build ツールを Dockerfile 内で入れるため、Node ネイティブビルドではなく Docker を使う）。
+# 無料・クレカ不要。無料枠は 15 分無操作でスリープ／永続ディスクなし＝SQLite は再デプロイで消える（デモ用途向け）。
+# Render が PORT を自動で渡す（アプリは process.env.PORT を使う）。
+services:
+  - type: web
+    name: todo-shared-pipeline    # 一意な名前に変更可
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    envVars:
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: NODE_ENV
+        value: production

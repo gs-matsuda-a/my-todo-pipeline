@@ -1,0 +1,13 @@
+{
+  "name": "todo-base-template",
+  "version": "0.1.0",
+  "description": "未完成の Todo アプリ雛形（Claude Code ハンズオン用）",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "express": "^4.19.2"
+  }
+}

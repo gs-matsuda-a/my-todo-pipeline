@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Todo App</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 600px;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+      padding: 40px;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    /* Auth Screens */
+    .auth-container {
+      text-align: center;
+    }
+
+    .auth-container h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+
+    .auth-container p {
+      color: #666;
+      margin-bottom: 30px;
+    }
+
+    .auth-form {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .auth-form input {
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .auth-form input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .auth-form button {
+      padding: 12px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    .auth-form button:hover {
+      background: #5568d3;
+    }
+
+    .auth-toggle {
+      margin-top: 20px;
+      color: #666;
+      font-size: 14px;
+    }
+
+    .auth-toggle button {
+      background: none;
+      border: none;
+      color: #667eea;
+      cursor: pointer;
+      font-weight: 600;
+      padding: 0;
+      text-decoration: underline;
+    }
+
+    .error-message {
+      background: #fee;
+      color: #c33;
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 15px;
+      font-size: 14px;
+    }
+
+    /* Dashboard */
+    .dashboard-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      border-bottom: 2px solid #f0f0f0;
+      padding-bottom: 20px;
+    }
+
+    .dashboard-header h1 {
+      color: #333;
+      font-size: 24px;
+    }
+
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .user-info span {
+      color: #666;
+      font-size: 14px;
+    }
+
+    .logout-btn {
+      padding: 8px 16px;
+      background: #f0f0f0;
+      color: #333;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.3s;
+    }
+
+    .logout-btn:hover {
+      background: #e0e0e0;
+    }
+
+    .add-task-form {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 30px;
+    }
+
+    .add-task-form input {
+      flex: 1;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .add-task-form input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .add-task-form button {
+      padding: 12px 24px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.3s;
+    }
+
+    .add-task-form button:hover {
+      background: #5568d3;
+    }
+
+    .tasks-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .task-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 15px;
+      background: #f9f9f9;
+      border: 1px solid #eee;
+      border-radius: 6px;
+      transition: background 0.2s;
+    }
+
+    .task-item:hover {
+      background: #f5f5f5;
+    }
+
+    .task-checkbox {
+      margin-top: 3px;
+      cursor: pointer;
+      width: 18px;
+      height: 18px;
+    }
+
+    .task-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .task-title {
+      color: #333;
+      font-size: 14px;
+      font-weight: 500;
+      word-break: break-word;
+      margin-bottom: 4px;
+    }
+
+    .task-title.completed {
+      color: #999;
+      text-decoration: line-through;
+    }
+
+    .task-meta {
+      font-size: 12px;
+      color: #999;
+      margin-top: 4px;
+    }
+
+    .task-meta-item {
+      display: inline-block;
+      margin-right: 12px;
+    }
+
+    .task-share-badge {
+      display: inline-block;
+      background: #e3f2fd;
+      color: #1976d2;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .task-actions {
+      display: flex;
+      gap: 8px;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+
+    .task-actions button {
+      padding: 6px 12px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: background 0.2s;
+    }
+
+    .task-share-btn {
+      background: #e3f2fd;
+      color: #1976d2;
+    }
+
+    .task-share-btn:hover {
+      background: #bbdefb;
+    }
+
+    .task-delete-btn {
+      background: #ffebee;
+      color: #c62828;
+    }
+
+    .task-delete-btn:hover {
+      background: #ffcdd2;
+    }
+
+    .empty-state {
+      text-align: center;
+      color: #999;
+      padding: 40px 20px;
+      font-size: 14px;
+    }
+
+    /* Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: white;
+      border-radius: 10px;
+      padding: 30px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .modal-content h2 {
+      margin-bottom: 20px;
+      color: #333;
+      font-size: 18px;
+    }
+
+    .modal-form {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .modal-form input,
+    .modal-form select {
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .modal-form input:focus,
+    .modal-form select:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .modal-buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .modal-buttons button {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.3s;
+    }
+
+    .modal-submit {
+      background: #667eea;
+      color: white;
+    }
+
+    .modal-submit:hover {
+      background: #5568d3;
+    }
+
+    .modal-cancel {
+      background: #f0f0f0;
+      color: #333;
+    }
+
+    .modal-cancel:hover {
+      background: #e0e0e0;
+    }
+
+    .success-message {
+      background: #efe;
+      color: #3a3;
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 15px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Auth Screen -->
+  <div id="authScreen" class="container">
+    <div class="auth-container">
+      <h1>Todo App</h1>
+      <p id="authToggleLabel">アカウントをお持ちですか？ログインしてください</p>
+
+      <div id="errorBox"></div>
+
+      <form id="loginForm" class="auth-form">
+        <input type="text" id="loginUsername" placeholder="ユーザー名" required />
+        <input type="password" id="loginPassword" placeholder="パスワード" required />
+        <button type="submit">ログイン</button>
+      </form>
+
+      <form id="registerForm" class="auth-form hidden">
+        <input type="text" id="registerUsername" placeholder="ユーザー名" required />
+        <input type="password" id="registerPassword" placeholder="パスワード" required />
+        <button type="submit">登録</button>
+      </form>
+
+      <div class="auth-toggle">
+        <span id="authToggleText">アカウントをお持ちでないですか？</span>
+        <button type="button" id="authToggleBtn">登録する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dashboardScreen" class="container hidden">
+    <div class="dashboard-header">
+      <h1>My Tasks</h1>
+      <div class="user-info">
+        <span id="currentUsername"></span>
+        <button class="logout-btn" id="logoutBtn">ログアウト</button>
+      </div>
+    </div>
+
+    <div id="successBox"></div>
+
+    <div class="add-task-form">
+      <input type="text" id="newTaskTitle" placeholder="新しいタスクを入力..." />
+      <button id="addTaskBtn">追加</button>
+    </div>
+
+    <div id="tasksContainer" class="tasks-list"></div>
+  </div>
+
+  <!-- Share Modal -->
+  <div id="shareModal" class="modal">
+    <div class="modal-content">
+      <h2>タスクを共有</h2>
+      <form id="shareForm" class="modal-form">
+        <input type="text" id="shareUsername" placeholder="共有相手のユーザー名" required />
+        <select id="sharePermission">
+          <option value="view">閲覧のみ</option>
+          <option value="edit">編集可</option>
+        </select>
+        <div class="modal-buttons">
+          <button type="submit" class="modal-submit">共有</button>
+          <button type="button" class="modal-cancel" id="shareModalCancel">キャンセル</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    let currentTaskId = null;
+
+    // API helpers
+    async function apiCall(method, path, body = null) {
+      const options = {
+        method,
+        headers: { 'Content-Type': 'application/json' }
+      };
+      if (body) options.body = JSON.stringify(body);
+
+      const res = await fetch(path, options);
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+
+      return data;
+    }
+
+    // Auth functions
+    async function handleLogin(e) {
+      e.preventDefault();
+      const username = document.getElementById('loginUsername').value;
+      const password = document.getElementById('loginPassword').value;
+
+      try {
+        await apiCall('POST', '/api/login', { username, password });
+        showDashboard();
+        loadTasks();
+      } catch (err) {
+        showError(err.message);
+      }
+    }
+
+    async function handleRegister(e) {
+      e.preventDefault();
+      const username = document.getElementById('registerUsername').value;
+      const password = document.getElementById('registerPassword').value;
+
+      try {
+        await apiCall('POST', '/api/register', { username, password });
+        await apiCall('POST', '/api/login', { username, password });
+        showDashboard();
+        loadTasks();
+      } catch (err) {
+        showError(err.message);
+      }
+    }
+
+    async function handleLogout() {
+      try {
+        await apiCall('POST', '/api/logout');
+        showAuth();
+        document.getElementById('loginForm').reset();
+        document.getElementById('registerForm').reset();
+      } catch (err) {
+        showError(err.message);
+      }
+    }
+
+    // UI functions
+    function showAuth() {
+      document.getElementById('authScreen').classList.remove('hidden');
+      document.getElementById('dashboardScreen').classList.add('hidden');
+    }
+
+    async function showDashboard() {
+      const user = await apiCall('GET', '/api/me');
+      document.getElementById('currentUsername').textContent = user.username;
+
+      document.getElementById('authScreen').classList.add('hidden');
+      document.getElementById('dashboardScreen').classList.remove('hidden');
+    }
+
+    function showError(msg) {
+      const box = document.getElementById('errorBox');
+      box.innerHTML = `<div class="error-message">${msg}</div>`;
+      setTimeout(() => { box.innerHTML = ''; }, 4000);
+    }
+
+    function showSuccess(msg) {
+      const box = document.getElementById('successBox');
+      box.innerHTML = `<div class="success-message">${msg}</div>`;
+      setTimeout(() => { box.innerHTML = ''; }, 3000);
+    }
+
+    // Task functions
+    async function loadTasks() {
+      try {
+        const tasks = await apiCall('GET', '/api/tasks');
+        renderTasks(tasks);
+      } catch (err) {
+        showError(err.message);
+      }
+    }
+
+    function renderTasks(tasks) {
+      const container = document.getElementById('tasksContainer');
+
+      if (tasks.length === 0) {
+        container.innerHTML = '<div class="empty-state">タスクはまだありません。新しいタスクを作成してください。</div>';
+        return;
+      }
+
+      container.innerHTML = tasks.map(task => `
+        <div class="task-item">
+          <input type="checkbox" class="task-checkbox" ${task.completed ? 'checked' : ''}
+                 onchange="toggleTask(${task.id}, this.checked, ${task.version})">
+          <div class="task-content">
+            <div class="task-title ${task.completed ? 'completed' : ''}">${escapeHtml(task.title)}</div>
+            <div class="task-meta">
+              <span class="task-meta-item">ID: ${task.id}</span>
+              ${task.due_date ? `<span class="task-meta-item">期限: ${task.due_date}</span>` : ''}
+              ${task.share_permission && task.share_permission !== 'owner'
+                ? `<span class="task-share-badge">${task.owner_username} さんから${task.share_permission === 'edit' ? '編集可' : '閲覧'}で共有</span>`
+                : ''}
+            </div>
+          </div>
+          <div class="task-actions">
+            ${task.share_permission === 'owner'
+              ? `<button class="task-share-btn" onclick="openShareModal(${task.id})">共有</button>`
+              : ''}
+            ${task.share_permission === 'owner'
+              ? `<button class="task-delete-btn" onclick="deleteTask(${task.id})">削除</button>`
+              : ''}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function addTask() {
+      const title = document.getElementById('newTaskTitle').value.trim();
+      if (!title) return;
+
+      try {
+        await apiCall('POST', '/api/tasks', { title });
+        document.getElementById('newTaskTitle').value = '';
+        showSuccess('タスクを作成しました');
+        loadTasks();
+      } catch (err) {
+        showError(err.message);
+      }
+    }
+
+    async function toggleTask(taskId, completed, version) {
+      try {
+        await apiCall('PUT', `/api/tasks/${taskId}`, { completed: completed ? 1 : 0, version });
+        showSuccess(completed ? 'タスクを完了しました' : 'タスクを未完了にしました');
+        loadTasks();
+      } catch (err) {
+        showError(err.message);
+        loadTasks(); // Reload to sync state
+      }
+    }
+
+    async function deleteTask(taskId) {
+      if (!confirm('このタスクを削除しますか？')) return;
+
+      try {
+        await apiCall('DELETE', `/api/tasks/${taskId}`);
+        showSuccess('タスクを削除しました');
+        loadTasks();
+      } catch (err) {
+        showError(err.message);
+      }
+    }
+
+    function openShareModal(taskId) {
+      currentTaskId = taskId;
+      document.getElementById('shareModal').classList.add('active');
+      document.getElementById('shareUsername').focus();
+    }
+
+    function closeShareModal() {
+      currentTaskId = null;
+      document.getElementById('shareModal').classList.remove('active');
+      document.getElementById('shareForm').reset();
+    }
+
+    async function handleShare(e) {
+      e.preventDefault();
+      const username = document.getElementById('shareUsername').value.trim();
+      const permission = document.getElementById('sharePermission').value;
+
+      try {
+        await apiCall('POST', `/api/tasks/${currentTaskId}/share`, { username, permission });
+        showSuccess(`${username} さんと共有しました`);
+        closeShareModal();
+        loadTasks();
+      } catch (err) {
+        showError(err.message);
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Event listeners
+    document.getElementById('loginForm').addEventListener('submit', handleLogin);
+    document.getElementById('registerForm').addEventListener('submit', handleRegister);
+    document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+    document.getElementById('addTaskBtn').addEventListener('click', addTask);
+    document.getElementById('newTaskTitle').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') addTask();
+    });
+
+    document.getElementById('authToggleBtn').addEventListener('click', () => {
+      const loginForm = document.getElementById('loginForm');
+      const registerForm = document.getElementById('registerForm');
+      const isLogin = !loginForm.classList.contains('hidden');
+
+      if (isLogin) {
+        loginForm.classList.add('hidden');
+        registerForm.classList.remove('hidden');
+        document.getElementById('authToggleLabel').textContent = 'アカウント新規作成';
+        document.getElementById('authToggleText').textContent = 'アカウントをお持ちですか？';
+        document.getElementById('authToggleBtn').textContent = 'ログイン';
+      } else {
+        loginForm.classList.remove('hidden');
+        registerForm.classList.add('hidden');
+        document.getElementById('authToggleLabel').textContent = 'アカウントをお持ちですか？ログインしてください';
+        document.getElementById('authToggleText').textContent = 'アカウントをお持ちでないですか？';
+        document.getElementById('authToggleBtn').textContent = '登録する';
+      }
+    });
+
+    document.getElementById('shareForm').addEventListener('submit', handleShare);
+    document.getElementById('shareModalCancel').addEventListener('click', closeShareModal);
+
+    // Initialize
+    showAuth();
+  </script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+# 並列実行（git worktree）の作業内容は git に取り込まない。
+# このディレクトリ自体（skeleton）は残し、配下は全て無視する。
+*
+!.gitignore

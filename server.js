@@ -83,8 +83,10 @@ function validateUsername(username) {
   if (typeof username !== 'string') return false;
   if (username.length < MIN_USERNAME_LENGTH || username.length > MAX_USERNAME_LENGTH) return false;
   const normalized = username.normalize('NFKC');
-  if (/[\x00-\x1f\x7f]/.test(normalized)) return false;
-  if (/\s/.test(normalized)) return false;
+  for (let i = 0; i < normalized.length; i++) {
+    const code = normalized.charCodeAt(i);
+    if (code < 32 || code === 127 || /\s/.test(normalized[i])) return false;
+  }
   if (!/^[\w\p{L}\p{N}]+$/u.test(normalized)) return false;
   return true;
 }

@@ -2,9 +2,18 @@ const path = require('path');
 const express = require('express');
 const Database = require('better-sqlite3');
 const crypto = require('crypto');
+const bcrypt = require('bcrypt');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const db = new Database(path.join(__dirname, 'tasks.db'));
+
+// Security constants
+const MIN_USERNAME_LENGTH = 3;
+const MAX_USERNAME_LENGTH = 20;
+const MIN_PASSWORD_LENGTH = 8;
+const MAX_PASSWORD_LENGTH = 64;
+const BCRYPT_ROUNDS = 10;
 
 // ===== DB Schema =====
 db.exec(`
@@ -49,9 +58,55 @@ db.exec(`
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Rate limiting for login endpoint (5 attempts per 15 minutes per IP)
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: 'Too many login attempts, please try again later',
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
 // ===== Helpers =====
+
+/**
+ * Validate username format: 3-20 chars, alphanumeric + underscore only
+ * @param {string} username - Username to validate
+ * @returns {boolean} True if valid format
+ */
+function validateUsername(username) {
+  if (typeof username !== 'string') return false;
+  const pattern = new RegExp(`^[a-zA-Z0-9_]{${MIN_USERNAME_LENGTH},${MAX_USERNAME_LENGTH}}$`);
+  return pattern.test(username);
+}
+
+/**
+ * Validate password strength: 8-64 chars
+ * @param {string} password - Password to validate
+ * @returns {boolean} True if valid length
+ */
+function validatePassword(password) {
+  if (typeof password !== 'string') return false;
+  return password.length >= MIN_PASSWORD_LENGTH && password.length <= MAX_PASSWORD_LENGTH;
+}
+
+/**
+ * Hash password using bcrypt (cost factor: 10)
+ * @param {string} password - Plain password
+ * @returns {string} Bcrypt hash with salt
+ */
 function hashPassword(password) {
-  return crypto.createHash('sha256').update(password).digest('hex');
+  return bcrypt.hashSync(password, BCRYPT_ROUNDS);
+}
+
+/**
+ * Compare password with bcrypt hash
+ * @param {string} password - Plain password to verify
+ * @param {string} hash - Bcrypt hash to compare against
+ * @returns {boolean} True if password matches hash
+ */
+function comparePassword(password, hash) {
+  return bcrypt.compareSync(password, hash);
 }
 
 function generateSessionId() {
@@ -97,6 +152,14 @@ app.post('/api/register', (req, res) => {
     return res.status(400).json({ error: 'username and password required' });
   }
 
+  if (!validateUsername(username)) {
+    return res.status(400).json({ error: `username must be ${MIN_USERNAME_LENGTH}-${MAX_USERNAME_LENGTH} characters, alphanumeric and underscore only` });
+  }
+
+  if (!validatePassword(password)) {
+    return res.status(400).json({ error: `password must be ${MIN_PASSWORD_LENGTH}-${MAX_PASSWORD_LENGTH} characters` });
+  }
+
   try {
     const passwordHash = hashPassword(password);
     const result = db.prepare(
@@ -105,30 +168,36 @@ app.post('/api/register', (req, res) => {
 
     return res.status(201).json({ id: result.lastInsertRowid, username });
   } catch (err) {
-    if (err.message.includes('UNIQUE')) {
+    if (err.message.includes('UNIQUE') || err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
       return res.status(409).json({ error: 'username already exists' });
     }
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'internal server error' });
   }
 });
 
-app.post('/api/login', (req, res) => {
+app.post('/api/login', loginLimiter, (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
     return res.status(400).json({ error: 'username and password required' });
   }
 
+  if (!validatePassword(password)) {
+    return res.status(400).json({ error: 'password must be 8-64 characters' });
+  }
+
   const user = db.prepare('SELECT id, username, password_hash FROM users WHERE username = ?').get(username);
 
-  if (!user || user.password_hash !== hashPassword(password)) {
+  if (!user || !comparePassword(password, user.password_hash)) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
   const sessionId = generateSessionId();
   db.prepare('INSERT INTO sessions (id, user_id) VALUES (?, ?)').run(sessionId, user.id);
 
-  res.setHeader('Set-Cookie', `sessionId=${sessionId}; Path=/; HttpOnly; SameSite=Strict`);
+  const isProduction = process.env.NODE_ENV === 'production';
+  const cookieFlags = `sessionId=${sessionId}; Path=/; HttpOnly; SameSite=Strict${isProduction ? '; Secure' : ''}`;
+  res.setHeader('Set-Cookie', cookieFlags);
   return res.json({ id: user.id, username: user.username });
 });
 
@@ -410,7 +479,17 @@ app.delete('/api/tasks/:id/share', requireAuth, (req, res) => {
   return res.json({ ok: true });
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Todo app listening on http://localhost:${PORT}`);
-});
+// Export for testing
+module.exports = app;
+module.exports.validateUsername = validateUsername;
+module.exports.validatePassword = validatePassword;
+module.exports.hashPassword = hashPassword;
+module.exports.comparePassword = comparePassword;
+
+// Only listen if not in test mode
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`Todo app listening on http://localhost:${PORT}`);
+  });
+}

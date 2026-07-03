@@ -1,4 +1,5 @@
 let currentTaskId = null;
+let currentTasks = [];
 
 // API helpers
 async function apiCall(method, path, body = null) {
@@ -12,7 +13,9 @@ async function apiCall(method, path, body = null) {
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    throw new Error(data.error || `HTTP ${res.status}`);
+    const err = new Error(data.error || `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
   }
 
   return data;
@@ -89,6 +92,7 @@ function showSuccess(msg) {
 async function loadTasks(isNew = false) {
   try {
     const tasks = await apiCall('GET', '/api/tasks');
+    currentTasks = tasks;
     renderTasks(tasks, isNew);
   } catch (err) {
     showError(err.message);
@@ -118,6 +122,9 @@ function renderTasks(tasks, isNew = false) {
         </div>
       </div>
       <div class="task-actions">
+        ${task.share_permission === 'owner' || task.share_permission === 'edit'
+    ? `<button class="task-edit-btn" data-task-id="${task.id}" data-version="${task.version}">編集</button>`
+    : ''}
         ${task.share_permission === 'owner'
     ? `<button class="task-share-btn" data-task-id="${task.id}">共有</button>`
     : ''}
@@ -169,6 +176,121 @@ async function deleteTask(taskId) {
   } catch (err) {
     showError(err.message);
   }
+}
+
+function enterEditMode(taskElement, task) {
+  taskElement.classList.add('edit-mode');
+  const taskContent = taskElement.querySelector('.task-content');
+  const taskMeta = taskContent.querySelector('.task-meta');
+
+  taskContent.innerHTML = `
+    <div>
+      <input type="text" class="inline-input edit-title" value="${escapeHtml(task.title)}" placeholder="タスク名">
+      <div class="inline-error error-title" style="display:none;"></div>
+    </div>
+    <div style="margin-top: 8px;">
+      <input type="date" class="inline-input edit-due-date" value="${task.due_date || ''}" placeholder="期限">
+      <div class="inline-error error-due-date" style="display:none;"></div>
+    </div>
+    <div style="margin-top: 8px; display: flex; gap: 8px;">
+      <button class="edit-confirm-btn">確定</button>
+      <button class="edit-cancel-btn">キャンセル</button>
+    </div>
+  `;
+
+  const titleInput = taskContent.querySelector('.edit-title');
+  titleInput.focus();
+  titleInput.select();
+
+  // Bind event handlers
+  const confirmBtn = taskContent.querySelector('.edit-confirm-btn');
+  const cancelBtn = taskContent.querySelector('.edit-cancel-btn');
+  const dueDateInput = taskContent.querySelector('.edit-due-date');
+
+  const handleSubmit = async () => {
+    const newTitle = titleInput.value.trim();
+    const newDueDate = dueDateInput.value || null;
+
+    // Validate locally
+    if (!newTitle) {
+      taskContent.querySelector('.error-title').textContent = 'タスク名は必須です';
+      taskContent.querySelector('.error-title').style.display = 'block';
+      titleInput.focus();
+      return;
+    }
+    if (newTitle.length > 200) {
+      taskContent.querySelector('.error-title').textContent = '200文字以内で入力してください';
+      taskContent.querySelector('.error-title').style.display = 'block';
+      titleInput.focus();
+      return;
+    }
+    if (newDueDate && !/^\d{4}-\d{2}-\d{2}$/.test(newDueDate)) {
+      taskContent.querySelector('.error-due-date').textContent = 'YYYY-MM-DD形式で入力してください';
+      taskContent.querySelector('.error-due-date').style.display = 'block';
+      dueDateInput.focus();
+      return;
+    }
+
+    // Submit to server
+    try {
+      const response = await apiCall('PUT', `/api/tasks/${task.id}`, {
+        title: newTitle,
+        due_date: newDueDate,
+        version: task.version
+      });
+
+      showSuccess('タスクを更新しました');
+      loadTasks();
+    } catch (err) {
+      if (err.status === 400) {
+        if (err.message.includes('title')) {
+          taskContent.querySelector('.error-title').textContent = err.message;
+          taskContent.querySelector('.error-title').style.display = 'block';
+        } else if (err.message.includes('due_date')) {
+          taskContent.querySelector('.error-due-date').textContent = err.message;
+          taskContent.querySelector('.error-due-date').style.display = 'block';
+        } else {
+          showError(err.message);
+        }
+      } else if (err.status === 409) {
+        showError('他のユーザーによる編集が検出されました。ページを再読込してください。');
+        loadTasks();
+      } else {
+        showError(err.message);
+        loadTasks();
+      }
+    }
+  };
+
+  const handleCancel = () => {
+    cancelEdit(taskElement, task);
+  };
+
+  confirmBtn.addEventListener('click', handleSubmit);
+  cancelBtn.addEventListener('click', handleCancel);
+  titleInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handleSubmit();
+    if (e.key === 'Escape') handleCancel();
+  });
+  dueDateInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handleSubmit();
+    if (e.key === 'Escape') handleCancel();
+  });
+}
+
+function cancelEdit(taskElement, task) {
+  taskElement.classList.remove('edit-mode');
+  const taskContent = taskElement.querySelector('.task-content');
+  taskContent.innerHTML = `
+    <div class="task-title ${task.completed ? 'completed' : ''}">${escapeHtml(task.title)}</div>
+    <div class="task-meta">
+      <span class="task-meta-item">ID: ${task.id}</span>
+      ${task.due_date ? `<span class="task-meta-item">期限: ${task.due_date}</span>` : ''}
+      ${task.share_permission && task.share_permission !== 'owner'
+    ? `<span class="task-share-badge">${task.owner_username} さんから${task.share_permission === 'edit' ? '編集可' : '閲覧'}で共有</span>`
+    : ''}
+    </div>
+  `;
 }
 
 function openShareModal(taskId) {
@@ -251,11 +373,23 @@ document.getElementById('tasksContainer').addEventListener('change', (e) => {
 });
 
 document.getElementById('tasksContainer').addEventListener('click', (e) => {
+  const editBtn = e.target.closest('.task-edit-btn');
+  if (editBtn) {
+    const taskId = Number(editBtn.dataset.taskId);
+    const taskElement = editBtn.closest('.task-item');
+    const task = currentTasks.find(t => t.id === taskId);
+    if (task) {
+      enterEditMode(taskElement, task);
+    }
+    return;
+  }
+
   const shareBtn = e.target.closest('.task-share-btn');
   if (shareBtn) {
     openShareModal(Number(shareBtn.dataset.taskId));
     return;
   }
+
   const deleteBtn = e.target.closest('.task-delete-btn');
   if (deleteBtn) {
     deleteTask(Number(deleteBtn.dataset.taskId));

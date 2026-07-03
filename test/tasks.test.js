@@ -160,3 +160,98 @@ describe('POST /api/tasks - title length limit', () => {
     expect(res.status).toBe(201);
   });
 });
+
+describe('PUT /api/tasks/:id - due_date format validation', () => {
+  let cookie;
+  let taskId;
+
+  beforeAll(async () => {
+    cookie = await registerAndLogin('duedateformatuser');
+    const createRes = await request(app)
+      .post('/api/tasks')
+      .set('Cookie', cookie)
+      .send({ title: 'Test task', due_date: '2026-12-31' });
+    taskId = createRes.body.id;
+  });
+
+  test('rejects invalid due_date format (slash separator)', async () => {
+    const before = await request(app)
+      .get(`/api/tasks/${taskId}`)
+      .set('Cookie', cookie);
+
+    const res = await request(app)
+      .put(`/api/tasks/${taskId}`)
+      .set('Cookie', cookie)
+      .send({ due_date: '2026/12/31', version: before.body.version });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain('due_date');
+  });
+
+  test('rejects invalid due_date format (non-date string)', async () => {
+    const before = await request(app)
+      .get(`/api/tasks/${taskId}`)
+      .set('Cookie', cookie);
+
+    const res = await request(app)
+      .put(`/api/tasks/${taskId}`)
+      .set('Cookie', cookie)
+      .send({ due_date: 'not-a-date', version: before.body.version });
+
+    expect(res.status).toBe(400);
+  });
+
+  test('accepts valid due_date format (YYYY-MM-DD)', async () => {
+    const before = await request(app)
+      .get(`/api/tasks/${taskId}`)
+      .set('Cookie', cookie);
+
+    const res = await request(app)
+      .put(`/api/tasks/${taskId}`)
+      .set('Cookie', cookie)
+      .send({ due_date: '2027-06-15', version: before.body.version });
+
+    expect(res.status).toBe(200);
+    expect(res.body.due_date).toBe('2027-06-15');
+  });
+
+  test('accepts null/empty due_date', async () => {
+    const before = await request(app)
+      .get(`/api/tasks/${taskId}`)
+      .set('Cookie', cookie);
+
+    const res = await request(app)
+      .put(`/api/tasks/${taskId}`)
+      .set('Cookie', cookie)
+      .send({ due_date: null, version: before.body.version });
+
+    expect(res.status).toBe(200);
+    expect(res.body.due_date).toBeNull();
+  });
+
+  test('rejects invalid calendar date (2026-02-30)', async () => {
+    const before = await request(app)
+      .get(`/api/tasks/${taskId}`)
+      .set('Cookie', cookie);
+
+    const res = await request(app)
+      .put(`/api/tasks/${taskId}`)
+      .set('Cookie', cookie)
+      .send({ due_date: '2026-02-30', version: before.body.version });
+
+    expect(res.status).toBe(400);
+  });
+
+  test('rejects invalid calendar date (2026-04-31)', async () => {
+    const before = await request(app)
+      .get(`/api/tasks/${taskId}`)
+      .set('Cookie', cookie);
+
+    const res = await request(app)
+      .put(`/api/tasks/${taskId}`)
+      .set('Cookie', cookie)
+      .send({ due_date: '2026-04-31', version: before.body.version });
+
+    expect(res.status).toBe(400);
+  });
+});

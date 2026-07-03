@@ -131,6 +131,25 @@ function validateTitle(title) {
   return trimmed.length > 0 && trimmed.length <= MAX_TITLE_LENGTH;
 }
 
+/**
+ * Validate due_date format (YYYY-MM-DD) and calendar validity
+ * @param {string|null|undefined} dueDate - Due date to validate
+ * @returns {boolean} True if valid or null/undefined
+ */
+function validateDueDate(dueDate) {
+  if (dueDate === null || dueDate === undefined || dueDate === '') return true;
+  if (typeof dueDate !== 'string') return false;
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(dueDate)) return false;
+  const date = new Date(dueDate + 'T00:00:00Z');
+  if (isNaN(date.getTime())) return false;
+  // Check calendar validity: ensure parsed date matches input (e.g., 2026-02-30 -> invalid)
+  const [year, month, day] = dueDate.split('-').map(Number);
+  return date.getUTCFullYear() === year &&
+         date.getUTCMonth() === month - 1 &&
+         date.getUTCDate() === day;
+}
+
 function generateSessionId() {
   return crypto.randomBytes(32).toString('hex');
 }
@@ -360,6 +379,10 @@ app.put('/api/tasks/:id', requireAuth, (req, res) => {
 
   if (title !== undefined && !validateTitle(title)) {
     return res.status(400).json({ error: `title must be 1-${MAX_TITLE_LENGTH} characters` });
+  }
+
+  if (due_date !== undefined && !validateDueDate(due_date)) {
+    return res.status(400).json({ error: 'due_date must be YYYY-MM-DD format or empty' });
   }
 
   // Check version for optimistic locking

@@ -418,6 +418,71 @@
       animation: scaleUp 0.3s ease-out forwards;
     }
 
+    /* Edit Mode */
+    .edit-mode {
+      background: #f5f8ff;
+      border: 2px solid #667eea !important;
+    }
+
+    .inline-input {
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    .inline-input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .inline-error {
+      color: #c62828;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    .task-edit-btn {
+      background: #667eea;
+      color: white;
+    }
+
+    .task-edit-btn:hover {
+      background: #5568d3;
+      transform: scale(1.05);
+    }
+
+    .edit-confirm-btn {
+      padding: 6px 12px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .edit-confirm-btn:hover {
+      background: #5568d3;
+      transform: scale(1.05);
+    }
+
+    .edit-cancel-btn {
+      padding: 6px 12px;
+      background: #f0f0f0;
+      color: #333;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .edit-cancel-btn:hover {
+      background: #e0e0e0;
+    }
+
     .success-message {
       background: #efe;
       color: #3a3;

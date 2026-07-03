@@ -16,5 +16,11 @@
     "indent": ["error", 2],
     "no-var": "error",
     "prefer-const": "error"
-  }
+  },
+  "overrides": [
+    {
+      "files": ["public/**/*.js"],
+      "env": { "browser": true, "node": false }
+    }
+  ]
 }

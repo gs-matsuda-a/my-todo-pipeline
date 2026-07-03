@@ -1,5 +1,6 @@
 const path = require('path');
 const express = require('express');
+const helmet = require('helmet');
 const Database = require('better-sqlite3');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
@@ -14,6 +15,8 @@ const MAX_USERNAME_LENGTH = 20;
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 64;
 const BCRYPT_ROUNDS = 10;
+const MAX_TITLE_LENGTH = 200;
+const JSON_BODY_LIMIT = '100kb';
 
 // ===== DB Schema =====
 db.exec(`
@@ -55,7 +58,9 @@ db.exec(`
   );
 `);
 
-app.use(express.json());
+app.disable('x-powered-by');
+app.use(helmet());
+app.use(express.json({ limit: JSON_BODY_LIMIT }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Rate limiting for login endpoint (5 attempts per 15 minutes per IP)
@@ -70,14 +75,15 @@ const loginLimiter = rateLimit({
 // ===== Helpers =====
 
 /**
- * Validate username format: 3-20 chars, alphanumeric + underscore only
+ * Validate username format: 3-20 chars, alphanumeric + underscore + multibyte chars allowed
  * @param {string} username - Username to validate
  * @returns {boolean} True if valid format
  */
 function validateUsername(username) {
   if (typeof username !== 'string') return false;
-  const pattern = new RegExp(`^[a-zA-Z0-9_]{${MIN_USERNAME_LENGTH},${MAX_USERNAME_LENGTH}}$`);
-  return pattern.test(username);
+  if (username.length < MIN_USERNAME_LENGTH || username.length > MAX_USERNAME_LENGTH) return false;
+  if (/[^\w\p{L}\p{N}]|[\x00-\x1f\x7f\s]/u.test(username.normalize('NFKC'))) return false;
+  return true;
 }
 
 /**
@@ -107,6 +113,17 @@ function hashPassword(password) {
  */
 function comparePassword(password, hash) {
   return bcrypt.compareSync(password, hash);
+}
+
+/**
+ * Validate task title: non-empty (after trim) string within MAX_TITLE_LENGTH
+ * @param {string} title - Task title to validate
+ * @returns {boolean} True if valid
+ */
+function validateTitle(title) {
+  if (typeof title !== 'string') return false;
+  const trimmed = title.trim();
+  return trimmed.length > 0 && trimmed.length <= MAX_TITLE_LENGTH;
 }
 
 function generateSessionId() {
@@ -161,10 +178,11 @@ app.post('/api/register', (req, res) => {
   }
 
   try {
+    const normalizedUsername = username.normalize('NFKC');
     const passwordHash = hashPassword(password);
     const result = db.prepare(
       'INSERT INTO users (username, password_hash) VALUES (?, ?)'
-    ).run(username, passwordHash);
+    ).run(normalizedUsername, passwordHash);
 
     return res.status(201).json({ id: result.lastInsertRowid, username });
   } catch (err) {
@@ -186,7 +204,8 @@ app.post('/api/login', loginLimiter, (req, res) => {
     return res.status(400).json({ error: 'password must be 8-64 characters' });
   }
 
-  const user = db.prepare('SELECT id, username, password_hash FROM users WHERE username = ?').get(username);
+  const normalizedUsername = username.normalize('NFKC');
+  const user = db.prepare('SELECT id, username, password_hash FROM users WHERE username = ?').get(normalizedUsername);
 
   if (!user || !comparePassword(password, user.password_hash)) {
     return res.status(401).json({ error: 'Invalid credentials' });
@@ -259,9 +278,14 @@ app.post('/api/tasks', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'title required' });
   }
 
+  if (!validateTitle(title)) {
+    return res.status(400).json({ error: `title must be 1-${MAX_TITLE_LENGTH} characters` });
+  }
+
+  const trimmedTitle = title.trim();
   const result = db.prepare(
     'INSERT INTO tasks (user_id, title, due_date) VALUES (?, ?, ?)'
-  ).run(userId, title, due_date || null);
+  ).run(userId, trimmedTitle, due_date || null);
 
   const task = db.prepare(
     'SELECT * FROM tasks WHERE id = ?'
@@ -329,21 +353,28 @@ app.put('/api/tasks/:id', requireAuth, (req, res) => {
     return res.status(403).json({ error: 'Forbidden' });
   }
 
+  if (title !== undefined && !validateTitle(title)) {
+    return res.status(400).json({ error: `title must be 1-${MAX_TITLE_LENGTH} characters` });
+  }
+
   // Check version for optimistic locking
   if (version !== undefined && version !== task.version) {
     return res.status(409).json({ error: 'Conflict: version mismatch' });
   }
 
   const newVersion = (version !== undefined) ? version + 1 : task.version;
+  const newTitle = (title !== undefined) ? title.trim() : task.title;
+  const newCompleted = (completed !== undefined) ? (completed ? 1 : 0) : task.completed;
+  const newDueDate = (due_date !== undefined) ? due_date : task.due_date;
 
   db.prepare(`
-    UPDATE tasks SET title = COALESCE(?, title),
-                     completed = COALESCE(?, completed),
+    UPDATE tasks SET title = ?,
+                     completed = ?,
                      due_date = ?,
                      version = ?,
                      updated_at = datetime('now')
     WHERE id = ?
-  `).run(title || null, completed !== undefined ? completed : null, due_date || null, newVersion, taskId);
+  `).run(newTitle, newCompleted, newDueDate, newVersion, taskId);
 
   const updated = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId);
   return res.json(updated);
@@ -390,7 +421,7 @@ app.post('/api/tasks/bulk', requireAuth, (req, res) => {
 
   if (action === 'complete') {
     for (const id of accessibleIds) {
-      db.prepare('UPDATE tasks SET completed = 1, updated_at = datetime("now") WHERE id = ?').run(id);
+      db.prepare('UPDATE tasks SET completed = 1, updated_at = datetime(\'now\') WHERE id = ?').run(id);
     }
   } else if (action === 'delete') {
     for (const id of accessibleIds) {
@@ -425,7 +456,8 @@ app.post('/api/tasks/:id/share', requireAuth, (req, res) => {
     return res.status(403).json({ error: 'Forbidden' });
   }
 
-  const sharedWithUser = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+  const normalizedUsername = username.normalize('NFKC');
+  const sharedWithUser = db.prepare('SELECT id FROM users WHERE username = ?').get(normalizedUsername);
 
   if (!sharedWithUser) {
     return res.status(404).json({ error: 'User not found' });
@@ -466,7 +498,8 @@ app.delete('/api/tasks/:id/share', requireAuth, (req, res) => {
     return res.status(403).json({ error: 'Forbidden' });
   }
 
-  const sharedWithUser = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+  const normalizedUsername = username.normalize('NFKC');
+  const sharedWithUser = db.prepare('SELECT id FROM users WHERE username = ?').get(normalizedUsername);
 
   if (!sharedWithUser) {
     return res.status(404).json({ error: 'User not found' });
@@ -483,13 +516,14 @@ app.delete('/api/tasks/:id/share', requireAuth, (req, res) => {
 module.exports = app;
 module.exports.validateUsername = validateUsername;
 module.exports.validatePassword = validatePassword;
+module.exports.validateTitle = validateTitle;
 module.exports.hashPassword = hashPassword;
 module.exports.comparePassword = comparePassword;
 
 // Only listen if not in test mode
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
-  app.listen(PORT, () => {
+  app.listen(PORT, 'localhost', () => {
     console.log(`Todo app listening on http://localhost:${PORT}`);
   });
 }

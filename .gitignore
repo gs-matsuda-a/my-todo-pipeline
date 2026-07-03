@@ -3,4 +3,5 @@ node_modules/
 coverage/
 .env
 .env.local
+.env.deploy
 .DS_Store

@@ -82,7 +82,10 @@ const loginLimiter = rateLimit({
 function validateUsername(username) {
   if (typeof username !== 'string') return false;
   if (username.length < MIN_USERNAME_LENGTH || username.length > MAX_USERNAME_LENGTH) return false;
-  if (/[^\w\p{L}\p{N}]|[\x00-\x1f\x7f\s]/u.test(username.normalize('NFKC'))) return false;
+  const normalized = username.normalize('NFKC');
+  if (/[\x00-\x1f\x7f]/.test(normalized)) return false;
+  if (/\s/.test(normalized)) return false;
+  if (!/^[\w\p{L}\p{N}]+$/u.test(normalized)) return false;
   return true;
 }
 

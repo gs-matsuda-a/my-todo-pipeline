@@ -86,16 +86,16 @@ function showSuccess(msg) {
 }
 
 // Task functions
-async function loadTasks() {
+async function loadTasks(isNew = false) {
   try {
     const tasks = await apiCall('GET', '/api/tasks');
-    renderTasks(tasks);
+    renderTasks(tasks, isNew);
   } catch (err) {
     showError(err.message);
   }
 }
 
-function renderTasks(tasks) {
+function renderTasks(tasks, isNew = false) {
   const container = document.getElementById('tasksContainer');
 
   if (tasks.length === 0) {
@@ -103,8 +103,8 @@ function renderTasks(tasks) {
     return;
   }
 
-  container.innerHTML = tasks.map(task => `
-    <div class="task-item">
+  container.innerHTML = tasks.map((task, index) => `
+    <div class="task-item ${isNew && index === 0 ? 'fade-in' : ''}">
       <input type="checkbox" class="task-checkbox" ${task.completed ? 'checked' : ''}
              data-task-id="${task.id}" data-version="${task.version}">
       <div class="task-content">
@@ -137,7 +137,7 @@ async function addTask() {
     await apiCall('POST', '/api/tasks', { title });
     document.getElementById('newTaskTitle').value = '';
     showSuccess('タスクを作成しました');
-    loadTasks();
+    loadTasks(true);
   } catch (err) {
     showError(err.message);
   }
@@ -158,6 +158,11 @@ async function deleteTask(taskId) {
   if (!confirm('このタスクを削除しますか？')) return;
 
   try {
+    const taskElement = document.querySelector(`[data-task-id="${taskId}"]`).closest('.task-item');
+    taskElement?.classList.add('slide-out');
+
+    await new Promise(resolve => setTimeout(resolve, 300));
+
     await apiCall('DELETE', `/api/tasks/${taskId}`);
     showSuccess('タスクを削除しました');
     loadTasks();
@@ -168,13 +173,18 @@ async function deleteTask(taskId) {
 
 function openShareModal(taskId) {
   currentTaskId = taskId;
-  document.getElementById('shareModal').classList.add('active');
+  const modal = document.getElementById('shareModal');
+  modal.classList.add('active');
+  const content = modal.querySelector('.modal-content');
+  content?.classList.add('fade-scale');
   document.getElementById('shareUsername').focus();
 }
 
 function closeShareModal() {
   currentTaskId = null;
-  document.getElementById('shareModal').classList.remove('active');
+  const modal = document.getElementById('shareModal');
+  modal.classList.remove('active');
+  modal.querySelector('.modal-content')?.classList.remove('fade-scale');
   document.getElementById('shareForm').reset();
 }
 

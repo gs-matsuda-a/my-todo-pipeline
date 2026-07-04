@@ -58,8 +58,8 @@ db.exec(`
   );
 `);
 
-app.disable('x-powered-by');
 app.use(helmet());
+app.disable('x-powered-by');
 app.use(express.json({ limit: JSON_BODY_LIMIT }));
 app.use(express.static(path.join(__dirname, 'public')));
 

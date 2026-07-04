@@ -551,7 +551,7 @@ module.exports.comparePassword = comparePassword;
 // Only listen if not in test mode
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
-  app.listen(PORT, 'localhost', () => {
-    console.log(`Todo app listening on http://localhost:${PORT}`);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Todo app listening on port ${PORT}`);
   });
 }

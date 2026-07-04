@@ -77,7 +77,8 @@ async function showDashboard() {
 }
 
 function showError(msg) {
-  const box = document.getElementById('errorBox');
+  const isDashboard = !document.getElementById('dashboardScreen').classList.contains('hidden');
+  const box = document.getElementById(isDashboard ? 'dashboardErrorBox' : 'errorBox');
   box.innerHTML = `<div class="error-message">${msg}</div>`;
   setTimeout(() => { box.innerHTML = ''; }, 4000);
 }

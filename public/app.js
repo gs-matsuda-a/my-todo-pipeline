@@ -175,6 +175,7 @@ async function deleteTask(taskId) {
     loadTasks();
   } catch (err) {
     showError(err.message);
+    loadTasks();
   }
 }
 
